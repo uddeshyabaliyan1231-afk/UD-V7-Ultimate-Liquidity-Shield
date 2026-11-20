@@ -1,0 +1,15 @@
+{
+  "name": "ud-v7-ultimate-liquidity-shield",
+  "version": "1.0.0",
+  "description": "CoinDCX 5m crypto scanner with strict liquidity protection",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
