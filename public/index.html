@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UD V7 - Ultimate Liquidity Shield</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#080d18;color:#e8eefc;font-family:Arial,sans-serif}
+header{padding:20px;background:#101a2c;border-bottom:1px solid #263650}
+h1{margin:0;font-size:23px;color:#fff}
+.sub{color:#93a4c2;font-size:12px;margin-top:7px}
+main{max-width:1100px;margin:auto;padding:16px}
+.panel{background:#111b2d;border:1px solid #263650;border-radius:12px;padding:15px;margin-bottom:15px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button,select{padding:12px;border:0;border-radius:8px;font-weight:bold}
+button{cursor:pointer;background:#246bdf;color:white}
+.stop{background:#b83245}
+select{background:#202e45;color:white}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:#17243a;padding:14px;border-radius:9px}
+.stat b{display:block;font-size:22px;margin-top:7px}
+.small{font-size:11px;color:#9eacc5}
+.status{font-weight:bold;color:#f3c969;margin-top:12px}
+.signal{border:1px solid #34445e;border-radius:10px;padding:14px;margin:10px 0;background:#101a2b}
+.buy{border-left:5px solid #20c987}
+.sell{border-left:5px solid #f05265}
+.signal h3{margin:0 0 10px}
+.tag{font-size:12px;font-weight:bold;padding:5px 8px;border-radius:5px;background:#263650}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}
+.item{background:#19263b;padding:9px;border-radius:7px;overflow-wrap:anywhere}
+.item span{display:block;color:#9eacc5;font-size:11px;margin-bottom:5px}
+.item b{font-size:13px}
+.empty{padding:22px;text-align:center;color:#a5b3cb}
+.error{color:#ff8793;font-size:12px;margin:6px 0}
+footer{color:#8796b1;font-size:11px;line-height:1.6;padding:10px}
+@media(max-width:600px){.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr 1fr}h1{font-size:19px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>UD V7 – Ultimate Liquidity Shield</h1>
+  <div class="sub">COINDCX USDT FUTURES · 5M ENTRY · 15M + 1H CONFIRMATION</div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="controls">
+      <select id="limit">
+        <option value="50">Scan 50 coins</option>
+        <option value="100" selected>Scan 100 coins</option>
+        <option value="200">Scan 200 coins</option>
+        <option value="300">Scan 300 coins</option>
+        <option value="500">Scan 500 coins</option>
+      </select>
+      <button onclick="startScanner()">START SCANNER</button>
+      <button class="stop" onclick="stopScanner()">STOP</button>
+      <button onclick="scanNow()">SCAN NOW</button>
+    </div>
+    <div class="status" id="status">Scanner stopped</div>
+    <div class="small" id="lastScan">Waiting for first scan...</div>
+  </section>
+
+  <section class="panel stats">
+    <div class="stat"><span class="small">PAIRS SCANNED</span><b id="pairs">0</b></div>
+    <div class="stat"><span class="small">BUY SIGNALS</span><b id="buys">0</b></div>
+    <div class="stat"><span class="small">SELL SIGNALS</span><b id="sells">0</b></div>
+  </section>
+
+  <section class="panel">
+    <h3>LEVEL 1 – TRADE READY SIGNALS</h3>
+    <div id="signals" class="empty">No trade-ready setup yet.</div>
+  </section>
+
+  <section class="panel">
+    <h3>SCAN DIAGNOSTICS</h3>
+    <div class="small" id="diagnostics">No errors.</div>
+  </section>
+
+  <footer>
+    Strict filters: volume MA rising, Stoch RSI extreme zone, 5M/15M/1H trend alignment,
+    full-body candle, opposing wick rejection filter, nearby price-level filter,
+    order-book depth and spread check.<br>
+    No signal is guaranteed. Liquidity traps cannot be eliminated completely.
+    This scanner provides analysis only and does not place orders.
+  </footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+async function api(url, method="GET", body=null){
+  const options={method,headers:{"Content-Type":"application/json"}};
+  if(body) options.body=JSON.stringify(body);
+  const response=await fetch(url,options);
+  if(!response.ok) throw new Error("Server error "+response.status);
+  return response.json();
+}
+
+async function startScanner(){
+  try{
+    $("status").textContent="Starting scanner...";
+    await api("/api/start","POST",{limit:Number($("limit").value)});
+    await refresh();
+  }catch(e){$("status").textContent=e.message;}
+}
+
+async function stopScanner(){
+  try{
+    await api("/api/stop","POST");
+    await refresh();
+  }catch(e){$("status").textContent=e.message;}
+}
+
+async function scanNow(){
+  try{
+    $("status").textContent="Scanning now...";
+    await api("/api/scan-now","POST");
+    await refresh();
+  }catch(e){$("status").textContent=e.message;}
+}
+
+function price(value){
+  return Number(value).toLocaleString("en-US",{maximumSignificantDigits:9});
+}
+
+function renderSignals(signals){
+  if(!signals || !signals.length){
+    $("signals").innerHTML='<div class="empty">No trade-ready setup. Scanner will not force a signal.</div>';
+    return;
+  }
+
+  $("signals").innerHTML=signals.map(s=>`
+    <div class="signal ${s.side==="BUY"?"buy":"sell"}">
+      <h3>${s.coin} <span class="tag">${s.side}</span></h3>
+      <div class="grid">
+        <div class="item"><span>ENTRY</span><b>${price(s.entry)}</b></div>
+        <div class="item"><span>STOP LOSS</span><b>${price(s.stopLoss)}</b></div>
+        <div class="item"><span>TARGET 1</span><b>${price(s.target1)}</b></div>
+        <div class="item"><span>TARGET 2</span><b>${price(s.target2)}</b></div>
+        <div class="item"><span>VOLUME / VOLUME MA</span><b>${s.volumeRatio}x</b></div>
+        <div class="item"><span>STOCH RSI</span><b>${s.stochRSI}</b></div>
+        <div class="item"><span>FULL BODY</span><b>${s.candleBody}%</b></div>
+        <div class="item"><span>ORDER BOOK SPREAD</span><b>${s.spread}%</b></div>
+        <div class="item"><span>ORDER BOOK DEPTH</span><b>$${Number(s.orderBookDepth).toLocaleString()}</b></div>
+      </div>
+    </div>
+  `).join("");
+}
+
+async function refresh(){
+  try{
+    const d=await api("/api/status");
+    $("status").textContent=d.status+(d.scanning?" · Scan in progress":"");
+    $("pairs").textContent=d.pairsScanned||0;
+    $("buys").textContent=(d.signals||[]).filter(s=>s.side==="BUY").length;
+    $("sells").textContent=(d.signals||[]).filter(s=>s.side==="SELL").length;
+    $("lastScan").textContent=d.lastScan
+      ?"Last scan: "+new Date(d.lastScan).toLocaleString()
+      :"Waiting for first scan...";
+    renderSignals(d.signals||[]);
+    $("diagnostics").innerHTML=(d.errors||[]).length
+      ?d.errors.slice(0,15).map(x=>`<div class="error">${x}</div>`).join("")
+      :"No errors reported.";
+  }catch(e){
+    $("status").textContent="Connecting to scanner...";
+  }
+}
+
+refresh();
+setInterval(refresh,5000);
+</script>
+</body>
+</html>
